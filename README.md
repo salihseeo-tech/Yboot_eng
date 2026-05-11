@@ -13,7 +13,7 @@
 ├── .gitignore
 └── .github/
     └── workflows/
-        └── generate.yml       ← GitHub Actions (كل 6 ساعات)
+        └── generate.yml       ← GitHub Actions (كل 2 ساعات)
 ```
 
 ---
