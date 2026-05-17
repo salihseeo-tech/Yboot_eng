@@ -1,184 +1,227 @@
 """
-🎬 Arabic Sports Video Generator — PROFESSIONAL MODE v1.0
+🎬 English Long-Form Video Generator — v1.0
 Groq AI + Pollinations AI + Edge TTS + MoviePy v2
-3 سلاسل رياضية احترافية:
-  🧠 التحليل التكتيكي
-  ⭐ نجوم وأساطير
-  📊 أرقام وإحصاءات
+3 Series: 🔥 Viral Trends | 📖 Untold Stories | 🤯 Mind-Blowing Facts
+Target: 10-15 minutes per video | General audience
 """
 
-import os, sys, time, json, random, hashlib, requests, asyncio, edge_tts, re
+import os
+import sys
+import time
+import json
+import random
+import hashlib
+import asyncio
+import re
+import requests
+
 from datetime import datetime
 from io import BytesIO
+
 from PIL import Image, ImageDraw, ImageFont
 from groq import Groq
+import edge_tts
 
 # ══════════════════════════════════════════════
-#  ⚙️  الإعدادات
+#  ⚙️  CONFIG
 # ══════════════════════════════════════════════
 GROQ_API_KEY      = os.environ.get("GROQ_API_KEY", "")
-OUTPUT_DIR        = "output_sports"
-HISTORY_FILE      = "history_sports.json"
-VIDEO_W           = 1024
-VIDEO_H           = 576
+OUTPUT_DIR        = "output_en_long"
+HISTORY_FILE      = "history_en_long.json"
+VIDEO_W           = 1920
+VIDEO_H           = 1080
 FPS               = 24
-SCENES_COUNT      = 8
-VOICE             = "ar-SA-HamedNeural"
-SIMILARITY_THRESH = 0.55
+SCENES_COUNT      = 28        # 28 scenes × ~25s = ~11-12 minutes
+VOICE             = "en-US-GuyNeural"
+SIMILARITY_THRESH = 0.50
 MAX_IDEA_RETRIES  = 6
 
 if not GROQ_API_KEY:
-    print("❌ GROQ_API_KEY غير موجود في environment variables")
+    print("❌ GROQ_API_KEY not found")
     sys.exit(1)
 
 # ══════════════════════════════════════════════
-#  📚 السلاسل الرياضية الثلاث
+#  📚 THREE SERIES
 # ══════════════════════════════════════════════
 SERIES = [
     {
-        "id": "tactics",
-        "name": "التحليل التكتيكي",
-        "emoji": "🧠",
+        "id": "trends",
+        "name": "Viral Trends Explained",
+        "emoji": "🔥",
         "videos_per_cycle": 4,
         "idea_prompt": (
-            "أنت محلل تكتيكي متخصص في كرة القدم. "
-            "اقترح فكرة واحدة فقط لفيديو تحليل تكتيكي أو فني عميق يتعلق بكرة القدم العالمية. "
-            "العنوان يكون احترافياً جذاباً لا يتجاوز 10 كلمات. "
-            "أمثلة على المستوى المطلوب: "
-            "'لماذا ضغط برشلونة العالي غيّر قواعد اللعبة'، "
-            "'سر الخط الدفاعي العالي عند مانشستر سيتي'، "
-            "'كيف يدمر كلوب الفرق بالكرة العالية والانتقال السريع'. "
-            "يجب أن تكون مختلفة تماماً عن: {used}. "
-            "أرجع العنوان فقط بدون أي نص إضافي."
+            "You are a top YouTube content creator specializing in viral trends. "
+            "Suggest ONE compelling video title about a current viral trend, internet phenomenon, "
+            "social movement, or cultural moment that people are talking about. "
+            "The title must be under 12 words, attention-grabbing, and suitable for a general audience. "
+            "Examples of the quality expected: "
+            "'Why Everyone Is Obsessed With This New Lifestyle Trend', "
+            "'The Viral Phenomenon That Took Over the Internet Overnight', "
+            "'This Social Movement Is Changing How Millions Think'. "
+            "Must be completely different from: {used}. "
+            "Return the title only, nothing else."
         ),
         "story_prompt": (
-            "أنت محلل تكتيكي متخصص، مستوى بي إن سبورتس. "
-            "اكتب تحليلاً فنياً عميقاً واحترافياً باللغة العربية الفصحى عن: {idea}\n"
-            "التحليل {n} مشاهد. كل مشهد يشرح جانباً تكتيكياً أو فنياً محدداً ودقيقاً.\n"
-            "استخدم مصطلحات احترافية: الضغط الأعلى، البناء من الخلف، الكرة بين الخطوط، "
-            "الجناح المقلوب، الجداري، التمركز، الانتقال الهجومي، الخط الدفاعي العالي.\n"
-            "الأسلوب: تحليلي دقيق، موثوق، واضح، بدون كلام فارغ أو مبالغة.\n"
-            "أرجع الرد بهذا الشكل بالضبط بدون أي نص إضافي:\n\n{template}"
+            "You are a professional YouTube scriptwriter creating a 10-15 minute video about: {idea}\n\n"
+            "Write {n} scenes. Each scene must be a full paragraph of 4-6 sentences "
+            "that flows naturally when spoken aloud.\n\n"
+            "STRICT RULES:\n"
+            "- Scene 1: Hook — start with a shocking statement or question that grabs attention instantly\n"
+            "- Scenes 2-4: Context — explain why this trend exists and where it came from\n"
+            "- Scenes 5-10: Deep dive — explore different angles, real examples, and surprising details\n"
+            "- Scenes 11-18: Impact — how it's changing society, psychology, or culture\n"
+            "- Scenes 19-24: Controversy — present different perspectives fairly\n"
+            "- Scenes 25-27: What's next — where this trend is heading\n"
+            "- Scene 28: Conclusion — memorable closing thought that makes viewers think\n"
+            "- Use conversational but intelligent English — like speaking to a smart friend\n"
+            "- No filler phrases, no repetition, every sentence adds value\n\n"
+            "Return ONLY this exact format:\n\n{template}"
         ),
         "image_style": (
-            "professional football tactical broadcast, stadium cinematic lighting, "
-            "tactical board overlay, ultra HD 4k, dramatic sports photography"
+            "cinematic viral social media trend visualization, "
+            "dramatic modern aesthetic, bold colors, 4k ultra HD, professional photography"
         ),
-        "bar_color": (0, 20, 60),
-        "text_color": (100, 180, 255, 255),
-        "tags": ["تكتيك", "تحليل تكتيكي", "كرة القدم", "فن الكرة", "بيب جوارديولا", "كلوب"],
-        "category_id": "17",
+        "bar_color":    (15, 0, 40),
+        "text_color":   (255, 100, 200, 255),
+        "accent_color": (200, 0, 255),
+        "tags": ["viral", "trending", "explained", "culture", "society", "trend2025"],
+        "category_id": "22",  # People & Blogs
     },
     {
-        "id": "legends",
-        "name": "نجوم وأساطير",
-        "emoji": "⭐",
+        "id": "stories",
+        "name": "Untold Stories",
+        "emoji": "📖",
         "videos_per_cycle": 4,
         "idea_prompt": (
-            "أنت صحفي رياضي متخصص في كرة القدم. "
-            "اقترح فكرة واحدة فقط لفيديو احترافي عن نجم أو أسطورة كروية — "
-            "قصة، إنجاز، مقارنة، أو جانب غير معروف من مسيرته. "
-            "العنوان جذاب لا يتجاوز 10 كلمات. "
-            "أمثلة: "
-            "'رونالدو والعقلية التي لا يملكها أحد في تاريخ الكرة'، "
-            "'مسيرة زيدان: من مارسيليا إلى قمة العالم'، "
-            "'لماذا كان رونالدينيو ظاهرة لن تتكرر أبداً'. "
-            "يجب أن تكون مختلفة تماماً عن: {used}. "
-            "أرجع العنوان فقط بدون أي نص إضافي."
+            "You are a professional documentary scriptwriter. "
+            "Suggest ONE compelling video title about a true story, historical event, "
+            "or real-life mystery that most people don't know about. "
+            "The title must be under 12 words, dramatic, and curiosity-driven. "
+            "Examples: "
+            "'The True Story Behind the Greatest Heist Nobody Talks About', "
+            "'The Man Who Fooled the Entire World for 30 Years', "
+            "'The Real Events That Inspired the Most Famous Movie Ever Made'. "
+            "Must be completely different from: {used}. "
+            "Return the title only, nothing else."
         ),
         "story_prompt": (
-            "أنت صحفي رياضي محترف على مستوى ESPN أو بي إن سبورتس. "
-            "اكتب تقريراً صحفياً سردياً احترافياً باللغة العربية الفصحى عن: {idea}\n"
-            "التقرير {n} مشاهد. كل مشهد يسرد جانباً حقيقياً ومثيراً من القصة.\n"
-            "الأسلوب: سردي درامي موثوق، استند على حقائق حقيقية، "
-            "ابدأ بمشهد يشد الانتباه فوراً، وانهِ بتقييم نقدي أو إرث اللاعب.\n"
-            "لا مبالغة ولا معلومات وهمية — الاحترافية أولاً.\n"
-            "أرجع الرد بهذا الشكل بالضبط بدون أي نص إضافي:\n\n{template}"
+            "You are a world-class documentary scriptwriter creating a 10-15 minute video about: {idea}\n\n"
+            "Write {n} scenes. Each scene must be a full paragraph of 4-6 sentences "
+            "that flows naturally when narrated.\n\n"
+            "STRICT RULES:\n"
+            "- Scene 1: Cold open — drop the viewer into the most dramatic moment of the story\n"
+            "- Scenes 2-4: Setup — who are the key people, what was the world like at the time\n"
+            "- Scenes 5-12: The story unfolds — build tension scene by scene chronologically\n"
+            "- Scenes 13-18: The turning point — the moment everything changed\n"
+            "- Scenes 19-23: Aftermath — what happened next, consequences, revelations\n"
+            "- Scenes 24-26: Why it matters — what this story teaches us today\n"
+            "- Scenes 27-28: Legacy — how this story lives on\n"
+            "- Use a gripping narrative voice — like the best true crime podcasts\n"
+            "- Use real names, dates, and places where known\n"
+            "- No fabricated facts — if uncertain, use 'reportedly' or 'according to'\n\n"
+            "Return ONLY this exact format:\n\n{template}"
         ),
         "image_style": (
-            "professional football player portrait, stadium atmosphere, "
-            "dramatic cinematic sports photography, golden hour lighting, 4k ultra HD"
+            "cinematic documentary storytelling, dramatic lighting, "
+            "film noir atmosphere, historical epic, 4k ultra HD, BBC documentary style"
         ),
-        "bar_color": (40, 20, 0),
-        "text_color": (255, 210, 80, 255),
-        "tags": ["نجوم الكرة", "أساطير كرة القدم", "رونالدو", "ميسي", "زيدان", "مسيرة"],
-        "category_id": "17",
+        "bar_color":    (30, 10, 0),
+        "text_color":   (255, 200, 80, 255),
+        "accent_color": (220, 140, 0),
+        "tags": ["truestory", "documentary", "untold", "history", "realstory", "mystery"],
+        "category_id": "27",  # Education
     },
     {
-        "id": "stats",
-        "name": "أرقام وإحصاءات",
-        "emoji": "📊",
+        "id": "facts",
+        "name": "Mind-Blowing Facts",
+        "emoji": "🤯",
         "videos_per_cycle": 4,
         "idea_prompt": (
-            "أنت محلل إحصائي رياضي متخصص. "
-            "اقترح فكرة واحدة فقط لفيديو يقدم أرقاماً وإحصاءات مذهلة في كرة القدم. "
-            "العنوان احترافي جذاب لا يتجاوز 10 كلمات. "
-            "أمثلة: "
-            "'الأرقام التي تثبت أن ميسي لن يتكرر أبداً'، "
-            "'أكثر 10 هدافين في تاريخ دوري أبطال أوروبا'، "
-            "'إحصاءات مجنونة لا تعرفها عن كأس العالم'. "
-            "يجب أن تكون مختلفة تماماً عن: {used}. "
-            "أرجع العنوان فقط بدون أي نص إضافي."
+            "You are a science communicator like Vsauce or Kurzgesagt. "
+            "Suggest ONE compelling video title about a mind-blowing scientific, "
+            "psychological, or historical fact that most people don't know. "
+            "The title must be under 12 words, curiosity-driven, and fascinating. "
+            "Examples: "
+            "'The Scientific Reason Your Brain Is Lying to You Right Now', "
+            "'This Discovery Changed Everything We Knew About Human History', "
+            "'Why Time Does Not Actually Exist the Way You Think It Does'. "
+            "Must be completely different from: {used}. "
+            "Return the title only, nothing else."
         ),
         "story_prompt": (
-            "أنت محلل إحصائي رياضي متخصص. "
-            "اكتب محتوى إحصائياً احترافياً ومذهلاً باللغة العربية الفصحى عن: {idea}\n"
-            "المحتوى {n} مشاهد. كل مشهد يقدم رقماً أو إحصائية حقيقية ومثيرة مع سياقها.\n"
-            "الأسلوب: دقيق، موثوق، قدّم الأرقام بطريقة مشوقة تجعل المشاهد يتفاجأ.\n"
-            "استخدم مقارنات لتوضيح ضخامة الرقم — مثلاً: 'هذا يعادل...' أو 'لم يفعل هذا سوى...'.\n"
-            "لا تخترع أرقاماً — استخدم أرقاماً حقيقية ومعروفة.\n"
-            "أرجع الرد بهذا الشكل بالضبط بدون أي نص إضافي:\n\n{template}"
+            "You are a science communicator like Vsauce creating a 10-15 minute video about: {idea}\n\n"
+            "Write {n} scenes. Each scene must be a full paragraph of 4-6 sentences "
+            "that flows naturally when spoken aloud.\n\n"
+            "STRICT RULES:\n"
+            "- Scene 1: Hook — open with a counterintuitive statement that challenges assumptions\n"
+            "- Scenes 2-5: The basics — explain the concept clearly for a general audience\n"
+            "- Scenes 6-12: Go deeper — layer in surprising complexity and real examples\n"
+            "- Scenes 13-18: The implications — what does this mean for how we see the world\n"
+            "- Scenes 19-22: Expert perspectives — what scientists/historians actually say\n"
+            "- Scenes 23-26: Real-world applications — how this affects everyday life\n"
+            "- Scenes 27-28: The big question — end with a thought-provoking open question\n"
+            "- Style: intelligent, curious, enthusiastic — make complex ideas feel exciting\n"
+            "- Use real studies, numbers, and examples — cite sources naturally in the script\n"
+            "- No dumbing down — trust the audience to follow complex ideas\n\n"
+            "Return ONLY this exact format:\n\n{template}"
         ),
         "image_style": (
-            "professional sports statistics infographic, football data visualization, "
-            "cinematic broadcast style, dramatic neon lighting, 4k ultra HD"
+            "Vsauce Kurzgesagt style scientific visualization, "
+            "stunning infographic cinematic, deep space dramatic, 4k ultra HD"
         ),
-        "bar_color": (0, 40, 20),
-        "text_color": (100, 255, 160, 255),
-        "tags": ["إحصاءات", "أرقام كرة القدم", "ميسي", "رونالدو", "دوري أبطال أوروبا", "كأس العالم"],
-        "category_id": "17",
+        "bar_color":    (0, 20, 50),
+        "text_color":   (100, 210, 255, 255),
+        "accent_color": (0, 180, 255),
+        "tags": ["mindblowing", "science", "facts", "psychology", "didyouknow", "vsauce"],
+        "category_id": "27",
     },
 ]
 
 # ══════════════════════════════════════════════
-#  🔍 فحص التكرار — 3 طبقات
+#  🔍 DUPLICATE CHECK — 3 Layers
 # ══════════════════════════════════════════════
 def normalize(text):
-    text = re.sub(r'[\u064B-\u065F]', '', text)
-    text = re.sub(r'[^\w\s\u0600-\u06FF]', ' ', text)
-    text = re.sub(r'\s+', ' ', text).strip().lower()
-    return text
+    text = re.sub(r"[^\w\s]", " ", text)
+    return re.sub(r"\s+", " ", text).strip().lower()
 
-def jaccard_similarity(a, b):
-    wa = set(normalize(a).split())
-    wb = set(normalize(b).split())
+def jaccard(a, b):
+    wa, wb = set(normalize(a).split()), set(normalize(b).split())
     if not wa or not wb:
         return 0.0
     return len(wa & wb) / len(wa | wb)
 
-def is_duplicate(new_idea, used_ideas, threshold=SIMILARITY_THRESH):
-    new_norm     = normalize(new_idea)
-    new_keywords = set(list(new_norm.split())[:3])
-    for old in used_ideas:
-        old_norm = normalize(old)
-        if new_norm == old_norm:
+def is_duplicate(new_idea, used):
+    nn  = normalize(new_idea)
+    nkw = set(nn.split()[:4])
+    for old in used:
+        on = normalize(old)
+        if nn == on:
             return True, old, 1.0
-        score = jaccard_similarity(new_idea, old)
-        if score >= threshold:
-            return True, old, score
-        old_keywords = set(list(old_norm.split())[:3])
-        kw_score = len(new_keywords & old_keywords) / max(len(new_keywords | old_keywords), 1)
-        if kw_score >= 0.7:
-            return True, old, kw_score
+        s = jaccard(new_idea, old)
+        if s >= SIMILARITY_THRESH:
+            return True, old, s
+        okw = set(on.split()[:4])
+        ks  = len(nkw & okw) / max(len(nkw | okw), 1)
+        if ks >= 0.65:
+            return True, old, ks
     return False, None, 0.0
 
 # ══════════════════════════════════════════════
-#  📋 السجل
+#  📋 HISTORY
 # ══════════════════════════════════════════════
 def load_history():
     if os.path.exists(HISTORY_FILE):
-        with open(HISTORY_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+        try:
+            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                data.setdefault("used_ideas", [])
+                data.setdefault("videos", [])
+                data.setdefault("series_tracker", {s["id"]: 0 for s in SERIES})
+                data.setdefault("current_series_index", 0)
+                data.setdefault("current_series_count", 0)
+                return data
+        except Exception as e:
+            print(f"⚠️  history corrupt, starting fresh: {e}")
     return {
         "used_ideas": [],
         "videos": [],
@@ -192,75 +235,109 @@ def save_history(h):
         json.dump(h, f, ensure_ascii=False, indent=2)
 
 # ══════════════════════════════════════════════
-#  🔄 تدوير السلاسل
+#  🔄 SERIES ROTATION
 # ══════════════════════════════════════════════
 def get_current_series(history):
-    idx    = history.get("current_series_index", 0)
+    idx    = history.get("current_series_index", 0) % len(SERIES)
     count  = history.get("current_series_count", 0)
-    series = SERIES[idx % len(SERIES)]
+    series = SERIES[idx]
     if count >= series["videos_per_cycle"]:
         idx    = (idx + 1) % len(SERIES)
         count  = 0
         series = SERIES[idx]
-        print(f"\n🔄 انتقلنا إلى سلسلة جديدة: {series['emoji']} {series['name']}\n")
+        print(f"🔄 New series: {series['emoji']} {series['name']}")
     history["current_series_index"] = idx
     history["current_series_count"] = count + 1
     return series
 
 # ══════════════════════════════════════════════
-#  🤖 Groq — فكرة مع فحص تكرار عميق
+#  🤖 Groq — IDEA
 # ══════════════════════════════════════════════
 def generate_idea(client, history, series):
     used      = history.get("used_ideas", [])
-    used_list = ", ".join(used[-40:]) if used else "لا يوجد"
+    used_list = ", ".join(used[-50:]) if used else "none"
 
     for attempt in range(1, MAX_IDEA_RETRIES + 1):
-        prompt = series["idea_prompt"].format(used=used_list)
-        resp   = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=min(0.90 + attempt * 0.03, 1.3),
-        )
-        idea = resp.choices[0].message.content.strip().strip('"\'').strip("-").strip()
+        try:
+            resp = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[{"role": "user", "content": series["idea_prompt"].format(used=used_list)}],
+                temperature=min(0.85 + attempt * 0.05, 1.3),
+                max_tokens=100,
+            )
+            idea = resp.choices[0].message.content.strip().strip("\"'").strip("-").strip()
+            if not idea:
+                continue
 
-        dup, matched, score = is_duplicate(idea, used)
-        if dup:
-            print(f"   ⚠️  محاولة {attempt}: مشابه ({score:.0%}) لـ '{matched}' — أعيد")
-            used_list = ", ".join(used[-40:]) + f", {idea}"
-            continue
+            dup, matched, score = is_duplicate(idea, used)
+            if dup:
+                print(f"  ⚠️  Attempt {attempt}: Similar ({score:.0%}) to '{matched}'")
+                used_list += f", {idea}"
+                continue
 
-        print(f"   ✅ فكرة فريدة (محاولة {attempt}): {idea}")
-        history["used_ideas"].append(idea)
-        return idea
+            print(f"  ✅ Unique idea (attempt {attempt}): {idea}")
+            history["used_ideas"].append(idea)
+            return idea
 
-    fallback = f"{idea} {datetime.now().strftime('%H%M')}"
-    print(f"   ⚠️  fallback: {fallback}")
+        except Exception as e:
+            print(f"  ⚠️  Groq error attempt {attempt}: {e}")
+            time.sleep(4)
+
+    fallback = f"Amazing Facts You Never Knew {datetime.now().strftime('%H%M%S')}"
     history["used_ideas"].append(fallback)
     return fallback
 
 # ══════════════════════════════════════════════
-#  🤖 Groq — المحتوى
+#  🤖 Groq — SCRIPT (split into 2 calls for long scripts)
 # ══════════════════════════════════════════════
-def build_scenes_template():
+def build_template(start, end):
     t = ""
-    for i in range(1, SCENES_COUNT + 1):
-        t += f"مشهد {i}: [النص العربي الاحترافي — جملة أو جملتان]\nصورة {i}: [وصف إنجليزي سينمائي]\n\n"
+    for i in range(start, end + 1):
+        t += f"Scene {i}: [Full paragraph narration — 4 to 6 sentences]\nImage {i}: [Cinematic image description]\n\n"
     return t
 
 def generate_story(idea, client, series):
-    print("   جاري كتابة المحتوى الاحترافي...")
-    prompt = series["story_prompt"].format(
-        idea=idea,
-        n=SCENES_COUNT,
-        template=build_scenes_template()
+    print("  ✍️  Writing script (Part 1)...")
+    scenes_all = []
+
+    # Split into 2 Groq calls to avoid token limits
+    # Part 1: scenes 1-14
+    prompt_1 = (
+        f"{series['story_prompt'].split('Return ONLY')[0]}"
+        f"Write scenes 1 to 14 ONLY.\n\n"
+        f"Return ONLY this exact format:\n\n"
+        f"{build_template(1, 14)}"
+    ).format(idea=idea, n=SCENES_COUNT, template="")
+
+    # Part 2: scenes 15-28
+    prompt_2 = (
+        f"Continue the video script about: {idea}\n"
+        f"Write scenes 15 to 28. Keep the same tone and style as part 1.\n"
+        f"Each scene: a full paragraph of 4-6 sentences.\n\n"
+        f"Return ONLY this exact format:\n\n"
+        f"{build_template(15, 28)}"
     )
-    resp = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.75,  # أقل عشوائية = أكثر احترافية
-    )
-    print("   ✅ المحتوى جاهز")
-    return resp.choices[0].message.content
+
+    for part_num, prompt in enumerate([prompt_1, prompt_2], 1):
+        print(f"  ✍️  Script Part {part_num}/2...")
+        for attempt in range(3):
+            try:
+                resp = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.72,
+                    max_tokens=4000,
+                )
+                content = resp.choices[0].message.content
+                if content and content.strip():
+                    scenes_all.append(content)
+                    print(f"  ✅ Part {part_num} ready")
+                    break
+            except Exception as e:
+                print(f"  ⚠️  Groq error part {part_num} attempt {attempt+1}: {e}")
+                time.sleep(4)
+
+    return "\n\n".join(scenes_all)
 
 def parse_story(raw, idea, series):
     scenes, current = [], {}
@@ -268,114 +345,101 @@ def parse_story(raw, idea, series):
         line = line.strip()
         if not line:
             continue
-        if re.match(r'^مشهد\s*\d+\s*:', line):
+        if re.match(r"^Scene\s*\d+\s*:", line, re.IGNORECASE):
             if current:
                 scenes.append(current)
             current = {"text": line.split(":", 1)[1].strip()}
-        elif re.match(r'^صورة\s*\d+\s*:', line):
+        elif re.match(r"^Image\s*\d+\s*:", line, re.IGNORECASE):
             current["image_prompt"] = line.split(":", 1)[1].strip()
     if current:
         scenes.append(current)
 
-    scenes = [s for s in scenes if "text" in s and "image_prompt" in s]
+    scenes = [s for s in scenes if s.get("text") and s.get("image_prompt")]
 
-    if not scenes:
-        print("⚠️  فشل التحليل، fallback...")
-        fallback = {
-            "tactics": [
-                ("يبدأ التحليل من الطريقة التي يضغط بها الفريق على الكرة.",           "football tactical pressing high line cinematic"),
-                ("الخط الدفاعي العالي يخلق مساحة خلف المهاجمين.",                    "defensive high line football stadium dramatic"),
-                ("البناء من الخلف يتطلب حارساً يشارك في اللعب.",                     "goalkeeper ball playing build-up cinematic"),
-                ("الكرة بين الخطوط هي أخطر لحظة دفاعياً.",                          "football between the lines tactical broadcast"),
-                ("الجناح المقلوب يخلق فرص التسديد من داخل القدم.",                   "inverted winger football tactical 4k"),
-                ("الانتقال السريع من دفاع لهجوم يرهق الخصم.",                        "fast counter attack football cinematic"),
-                ("الضغط الأعلى يسبب أخطاء في منطقة الخصم.",                         "gegenpressing football high press broadcast"),
-                ("هذا التكتيك غيّر وجه كرة القدم الحديثة إلى الأبد.",               "modern football tactics evolution cinematic"),
-            ],
-            "legends": [
-                ("بدأت رحلته من حي فقير لم يكن أحد يتوقع منه شيئاً.",               "football legend childhood humble beginnings cinematic"),
-                ("في أولى مبارياته الاحترافية، أثبت أنه مختلف.",                    "young football star debut stadium dramatic"),
-                ("كان تدريبه يختلف عن كل لاعب في الفريق.",                          "football legend training session cinematic"),
-                ("جاء اللقب الأول بعد سنوات من التضحية والعمل.",                    "football champion trophy lift stadium"),
-                ("اللحظة الفارقة التي غيّرت مسيرته إلى الأبد.",                    "football legend career turning point dramatic"),
-                ("الإصابة كادت توقف كل شيء، لكنه عاد أقوى.",                       "football comeback from injury cinematic"),
-                ("رقمه القياسي لا يزال شاهداً على عظمته.",                          "football record celebration stadium cinematic"),
-                ("هذا الإرث لن يمحوه الزمن أبداً.",                                "football legend legacy stadium golden hour"),
-            ],
-            "stats": [
-                ("هذا الرقم يجعلك تدرك حجم العظمة الحقيقية.",                      "football statistics infographic dramatic neon"),
-                ("في كل 90 دقيقة، كان يصنع الفارق.",                               "football stats per 90 minutes broadcast"),
-                ("لا أحد في التاريخ سجّل هذا الرقم من قبله.",                      "football record goals all time cinematic"),
-                ("المقارنة مع أساطير الماضي تجعل الرقم أكثر إدهاشاً.",             "football statistics comparison broadcast"),
-                ("في البطولات الكبرى، الرقم يتضاعف.",                              "football champions league statistics dramatic"),
-                ("حتى خصومه اعترفوا بأن هذه الأرقام فوق العادة.",                  "football rivals admitting greatness cinematic"),
-                ("هذه الإحصاءات تبقى ثابتة حتى بعد عشر سنوات.",                   "football legacy statistics timeline"),
-                ("وهذا ما يجعله الأفضل في التاريخ بكل موضوعية.",                   "football goat debate statistics cinematic"),
-            ],
-        }
-        base   = fallback.get(series["id"], fallback["tactics"])
-        scenes = [{"text": t, "image_prompt": f"{idea}, {p}"} for t, p in base]
+    # Fallback scenes if needed
+    fallbacks = [
+        ("This is one of the most remarkable things you'll ever learn about our world.", f"{idea}, dramatic cinematic visualization 4k"),
+        ("The evidence behind this is more compelling than most people realize.", f"{idea}, scientific dramatic documentary style"),
+        ("Experts have studied this for decades, and the findings are extraordinary.", f"{idea}, research laboratory cinematic"),
+        ("What happened next changed everything we thought we knew.", f"{idea}, dramatic turning point cinematic"),
+        ("The implications of this extend far beyond what most people imagine.", f"{idea}, wide angle epic visualization"),
+        ("Real accounts from the time paint a vivid picture of just how significant this was.", f"{idea}, historical atmospheric cinematic"),
+        ("When you look at the data, the patterns become impossible to ignore.", f"{idea}, data visualization dramatic"),
+        ("This is the part of the story that most sources leave out entirely.", f"{idea}, hidden reveal dramatic cinematic"),
+        ("The people involved had no idea they were making history.", f"{idea}, unaware historical moment cinematic"),
+        ("And the ripple effects of this are still being felt today.", f"{idea}, ripple effect wide cinematic"),
+        ("Scientists are only now beginning to understand the full scope of this.", f"{idea}, modern science discovery 4k"),
+        ("The truth, as it turns out, is far stranger than the popular narrative.", f"{idea}, truth reveal dramatic atmospheric"),
+        ("This single moment reshaped how millions of people think and behave.", f"{idea}, mass impact visualization"),
+        ("The question this raises is one humanity may never fully answer.", f"{idea}, philosophical question dramatic"),
+    ]
+
+    while len(scenes) < SCENES_COUNT:
+        i = len(scenes)
+        t, p = fallbacks[i % len(fallbacks)]
+        scenes.append({"text": t, "image_prompt": p})
+        print(f"  ⚠️  Scene {i+1} from fallback")
 
     return scenes[:SCENES_COUNT]
 
 # ══════════════════════════════════════════════
-#  🖼️  Pollinations — صور بستايل كل سلسلة
+#  🖼️  Pollinations
 # ══════════════════════════════════════════════
 def generate_image(prompt, index, seed, series):
-    print(f"   🖼️  صورة {index}/{SCENES_COUNT}...")
+    print(f"  🖼️  Image {index}/{SCENES_COUNT}...")
     enhanced = f"{prompt}, {series['image_style']}"
     url = (
         "https://image.pollinations.ai/prompt/"
         + requests.utils.quote(enhanced)
-        + f"?width={VIDEO_W}&height={VIDEO_H}&nologo=true&seed={seed + index * 7}"
+        + f"?width={VIDEO_W}&height={VIDEO_H}&nologo=true&seed={seed + index * 11}"
     )
-    for attempt in range(3):
+    for attempt in range(4):
         try:
-            resp = requests.get(url, timeout=90)
-            resp.raise_for_status()
-            img  = Image.open(BytesIO(resp.content)).convert("RGB")
+            r = requests.get(url, timeout=150)
+            r.raise_for_status()
+            img  = Image.open(BytesIO(r.content)).convert("RGB")
             path = os.path.join(OUTPUT_DIR, f"tmp_scene_{index}.jpg")
-            img.save(path, quality=95)
+            img.save(path, quality=92)
             return path
         except Exception as e:
-            print(f"      ⚠️  محاولة {attempt+1}: {e}")
-            time.sleep(4)
+            print(f"    ⚠️  Attempt {attempt+1}: {e}")
+            time.sleep(6)
 
-    colors = {
-        "tactics": ["#000c1a", "#001433", "#001f4d", "#000a14", "#00152b", "#001a3d", "#000f24", "#00193a"],
-        "legends": ["#1a0e00", "#2b1800", "#3d2200", "#140a00", "#221100", "#331900", "#1f0d00", "#290f00"],
-        "stats":   ["#001a0d", "#002b14", "#003d1f", "#00140a", "#001f0f", "#002e17", "#001a0c", "#002614"],
-    }
-    color_list = colors.get(series["id"], colors["tactics"])
-    img  = Image.new("RGB", (VIDEO_W, VIDEO_H), color_list[index % len(color_list)])
+    # Gradient fallback
+    bc   = series["bar_color"]
+    img  = Image.new("RGB", (VIDEO_W, VIDEO_H), bc)
+    draw = ImageDraw.Draw(img)
+    for y in range(VIDEO_H):
+        ratio = y / VIDEO_H
+        r = min(255, int(bc[0] + ratio * 40))
+        g = min(255, int(bc[1] + ratio * 20))
+        b = min(255, int(bc[2] + ratio * 60))
+        draw.rectangle([(0, y), (VIDEO_W, y + 1)], fill=(r, g, b))
     path = os.path.join(OUTPUT_DIR, f"tmp_scene_{index}.jpg")
     img.save(path)
     return path
 
 # ══════════════════════════════════════════════
-#  🖊️  Pillow — subtitle احترافي
+#  🖊️  Pillow — Professional subtitle
 # ══════════════════════════════════════════════
 def load_font(size):
-    for fp in [
+    for p in [
         "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
         "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf",
         "C:/Windows/Fonts/arial.ttf",
         "C:/Windows/Fonts/tahoma.ttf",
-        "C:/Windows/Fonts/segoeui.ttf",
         "/Library/Fonts/Arial.ttf",
-        "/System/Library/Fonts/Helvetica.ttc",
     ]:
-        if os.path.exists(fp):
+        if os.path.exists(p):
             try:
-                return ImageFont.truetype(fp, size=size)
+                return ImageFont.truetype(p, size=size)
             except Exception:
                 pass
     return ImageFont.load_default()
 
-def wrap_text(text, max_chars=50):
-    words = text.split()
-    lines, line = [], ""
+def wrap_text(text, max_chars=70):
+    words, lines, line = text.split(), [], ""
     for w in words:
         if len(line) + len(w) + 1 <= max_chars:
             line = f"{line} {w}".strip()
@@ -385,54 +449,61 @@ def wrap_text(text, max_chars=50):
             line = w
     if line:
         lines.append(line)
-    return lines[:3]
+    return lines[:4]   # up to 4 lines for long sentences
 
 def add_subtitle(image_path, text, index, series):
     img     = Image.open(image_path).convert("RGBA")
     overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
     draw    = ImageDraw.Draw(overlay)
+    bc, ac  = series["bar_color"], series["accent_color"]
+    bar_h   = 220   # taller bar for longer text
 
-    bc    = series["bar_color"]
-    bar_h = 160
-
-    # تدرج الشريط
+    # Gradient bar
     for y in range(bar_h):
-        alpha = int(220 * (1 - y / bar_h * 0.2))
+        a = int(230 * (1 - y / bar_h * 0.15))
         draw.rectangle(
             [(0, img.height - bar_h + y), (img.width, img.height - bar_h + y + 1)],
-            fill=(bc[0], bc[1], bc[2], alpha)
+            fill=(bc[0], bc[1], bc[2], a)
         )
 
-    # شارة السلسلة (أعلى يسار)
-    badge_font = load_font(19)
-    badge_text = f"{series['emoji']}  {series['name']}"
-    draw.rectangle([(12, 12), (260, 44)], fill=(0, 0, 0, 180))
-    draw.text((20, 16), badge_text, font=badge_font, fill=(255, 255, 255, 220))
-
-    # خط فاصل فوق الشريط
+    # Accent line
     draw.rectangle(
-        [(0, img.height - bar_h), (img.width, img.height - bar_h + 3)],
-        fill=(series["text_color"][0], series["text_color"][1], series["text_color"][2], 200)
+        [(0, img.height - bar_h), (img.width, img.height - bar_h + 5)],
+        fill=(ac[0], ac[1], ac[2], 230)
     )
 
-    font  = load_font(31)
+    # Series badge
+    bf = load_font(22)
+    btext = f"{series['emoji']}  {series['name']}"
+    bb    = draw.textbbox((0, 0), btext, font=bf)
+    bw    = bb[2] - bb[0]
+    draw.rectangle([(16, 16), (bw + 36, 52)], fill=(0, 0, 0, 190))
+    draw.text((26, 20), btext, font=bf, fill=(255, 255, 255, 230))
+
+    # Scene counter
+    nf   = load_font(20)
+    ntxt = f"{index} / {SCENES_COUNT}"
+    nb   = draw.textbbox((0, 0), ntxt, font=nf)
+    nw   = nb[2] - nb[0]
+    draw.rectangle([(img.width - nw - 30, 16), (img.width - 12, 50)], fill=(0, 0, 0, 160))
+    draw.text((img.width - nw - 20, 20), ntxt, font=nf, fill=(200, 200, 200, 210))
+
+    # Main text
+    font  = load_font(34)
     tc    = series["text_color"]
     lines = wrap_text(text)
+    y     = img.height - bar_h + 22
 
-    y = img.height - bar_h + 18
     for line in lines:
-        bb = draw.textbbox((0, 0), line, font=font)
-        tw = bb[2] - bb[0]
-        x  = (img.width - tw) // 2
-        # ظل
-        draw.text((x + 2, y + 2), line, font=font, fill=(0, 0, 0, 220))
-        # نص
-        draw.text((x, y), line, font=font, fill=tc)
-        y += 46
+        lb = draw.textbbox((0, 0), line, font=font)
+        lw = lb[2] - lb[0]
+        x  = (img.width - lw) // 2
+        draw.text((x + 2, y + 2), line, font=font, fill=(0, 0, 0, 210))
+        draw.text((x, y),         line, font=font, fill=tc)
+        y += 50
 
-    merged = Image.alpha_composite(img, overlay).convert("RGB")
-    out    = os.path.join(OUTPUT_DIR, f"tmp_sub_{index}.jpg")
-    merged.save(out, quality=95)
+    out = os.path.join(OUTPUT_DIR, f"tmp_sub_{index}.jpg")
+    Image.alpha_composite(img, overlay).convert("RGB").save(out, quality=92)
     return out
 
 # ══════════════════════════════════════════════
@@ -440,79 +511,104 @@ def add_subtitle(image_path, text, index, series):
 # ══════════════════════════════════════════════
 def generate_audio(text, index):
     path = os.path.join(OUTPUT_DIR, f"tmp_audio_{index}.mp3")
+
     async def _speak():
-        communicate = edge_tts.Communicate(text, VOICE)
+        communicate = edge_tts.Communicate(
+            text,
+            VOICE,
+            rate="-3%",    # slightly slower = clearer narration
+            volume="+8%",
+        )
         await communicate.save(path)
+
     asyncio.run(_speak())
+
+    if not os.path.exists(path) or os.path.getsize(path) < 100:
+        raise RuntimeError(f"Audio generation failed for scene {index}")
+
     return path
 
 # ══════════════════════════════════════════════
 #  🎬 MoviePy v2
 # ══════════════════════════════════════════════
 def create_video(scenes_data, output_name):
-    print("\n🎬 جاري تجميع الفيديو...")
+    print("\n🎬 Assembling video...")
     try:
         from moviepy import ImageClip, AudioFileClip, CompositeVideoClip
         from moviepy.video.fx import FadeIn, FadeOut
-    except ImportError:
-        print("❌ moviepy غير مثبتة: pip install moviepy")
+    except ImportError as e:
+        print(f"❌ moviepy: {e}")
         sys.exit(1)
 
-    FADE  = 0.5
-    clips = []
-    start = 0.0
+    FADE, clips, start = 0.8, [], 0.0
 
-    for scene in scenes_data:
-        if not os.path.exists(scene["audio_path"]):
-            print(f"   ⚠️  ملف صوت مفقود — تخطي")
+    for i, scene in enumerate(scenes_data):
+        ap = scene.get("audio_path", "")
+        sp = scene.get("subtitle_path", "")
+        if not os.path.exists(ap) or not os.path.exists(sp):
+            print(f"  ⚠️  Scene {i+1}: missing files — skipping")
             continue
-        audio = AudioFileClip(scene["audio_path"])
-        if audio.duration < 0.1:
-            audio.close()
-            continue
-        duration = audio.duration + 0.8
-        clip = (
-            ImageClip(scene["subtitle_path"], duration=duration)
-            .with_audio(audio)
-            .with_start(start)
-            .with_effects([FadeIn(FADE), FadeOut(FADE)])
-        )
-        clips.append(clip)
-        start += duration - FADE
+        try:
+            audio = AudioFileClip(ap)
+            if audio.duration < 0.5:
+                audio.close()
+                continue
+            dur  = audio.duration + 0.5
+            clip = (
+                ImageClip(sp).with_duration(dur)
+                .with_audio(audio)
+                .with_start(start)
+                .with_effects([FadeIn(FADE), FadeOut(FADE)])
+            )
+            clips.append(clip)
+            start += dur - FADE
+        except Exception as e:
+            print(f"  ⚠️  Scene {i+1} error: {e}")
 
     if not clips:
-        print("❌ لا توجد مقاطع صالحة.")
+        print("❌ No valid clips")
         sys.exit(1)
 
     total    = start + clips[-1].duration
+    mins     = int(total // 60)
+    secs     = int(total % 60)
+    print(f"  📏 Total duration: {mins}m {secs}s")
+
     final    = CompositeVideoClip(clips, size=(VIDEO_W, VIDEO_H)).with_duration(total)
     out_path = os.path.join(OUTPUT_DIR, output_name)
-    final.write_videofile(out_path, fps=FPS, codec="libx264", audio_codec="aac", logger=None)
+    final.write_videofile(
+        out_path,
+        fps=FPS,
+        codec="libx264",
+        audio_codec="aac",
+        logger=None,
+        preset="fast",
+    )
+    print(f"  ✅ {out_path}")
     return out_path
 
 # ══════════════════════════════════════════════
 #  📺 YouTube
 # ══════════════════════════════════════════════
 def upload_to_youtube(video_path, metadata):
+    creds_json = os.environ.get("YOUTUBE_CREDENTIALS_JSON", "")
+    if not creds_json:
+        print("⚠️  YOUTUBE_CREDENTIALS_JSON not set — skipping upload")
+        return None
     try:
         import google.oauth2.credentials
         import googleapiclient.discovery
         import googleapiclient.http
 
-        creds_json = os.environ.get("YOUTUBE_CREDENTIALS_JSON", "")
-        if not creds_json:
-            print("⚠️  YOUTUBE_CREDENTIALS_JSON غير موجود — تخطي النشر")
-            return None
-
-        creds_data = json.loads(creds_json)
+        d     = json.loads(creds_json)
         creds = google.oauth2.credentials.Credentials(
-            token         = creds_data.get("token"),
-            refresh_token = creds_data.get("refresh_token"),
+            token         = d.get("token"),
+            refresh_token = d.get("refresh_token"),
             token_uri     = "https://oauth2.googleapis.com/token",
-            client_id     = creds_data.get("client_id"),
-            client_secret = creds_data.get("client_secret"),
+            client_id     = d.get("client_id"),
+            client_secret = d.get("client_secret"),
         )
-        youtube = googleapiclient.discovery.build("youtube", "v3", credentials=creds)
+        yt   = googleapiclient.discovery.build("youtube", "v3", credentials=creds)
         body = {
             "snippet": {
                 "title"      : metadata["title"],
@@ -523,24 +619,23 @@ def upload_to_youtube(video_path, metadata):
             "status": {"privacyStatus": "public"},
         }
         media    = googleapiclient.http.MediaFileUpload(
-            video_path, mimetype="video/mp4", resumable=True, chunksize=1024*1024
+            video_path, mimetype="video/mp4", resumable=True, chunksize=2 * 1024 * 1024
         )
-        request  = youtube.videos().insert(part="snippet,status", body=body, media_body=media)
-        response = None
-        print("📤 جاري الرفع على يوتيوب...")
-        while response is None:
-            status, response = request.next_chunk()
+        req, res = yt.videos().insert(part="snippet,status", body=body, media_body=media), None
+        print("📤 Uploading...")
+        while res is None:
+            status, res = req.next_chunk()
             if status:
-                print(f"   ⬆️  {int(status.progress() * 100)}%")
-        video_id = response.get("id")
-        print(f"   ✅ نُشر: https://youtube.com/watch?v={video_id}")
-        return video_id
+                print(f"  ⬆️  {int(status.progress() * 100)}%")
+        vid = res.get("id")
+        print(f"  ✅ https://youtube.com/watch?v={vid}")
+        return vid
     except Exception as e:
-        print(f"   ❌ فشل النشر: {e}")
+        print(f"  ❌ Upload failed: {e}")
         return None
 
 # ══════════════════════════════════════════════
-#  🗑️  تنظيف
+#  🗑️  Cleanup
 # ══════════════════════════════════════════════
 def cleanup_temp():
     for f in os.listdir(OUTPUT_DIR):
@@ -551,45 +646,50 @@ def cleanup_temp():
                 pass
 
 # ══════════════════════════════════════════════
-#  🚀 التشغيل
+#  🚀 MAIN RUN
 # ══════════════════════════════════════════════
 def run():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     print("=" * 55)
-    print("⚽ مولّد المحتوى الرياضي الاحترافي — v1.0")
+    print("🎬 English Long-Form Video Generator v1.0")
+    print(f"🎙️  Voice: {VOICE} | 🎞️  Scenes: {SCENES_COUNT}")
+    print(f"📐 Resolution: {VIDEO_W}x{VIDEO_H}")
     print("=" * 55)
 
     client  = Groq(api_key=GROQ_API_KEY)
     history = load_history()
+    series  = get_current_series(history)
 
-    series = get_current_series(history)
-    print(f"📺 السلسلة   : {series['emoji']} {series['name']}")
-    print(f"🔢 الفيديو   : {history['current_series_count']}/{series['videos_per_cycle']}")
-    print(f"📦 أفكار محفوظة: {len(history.get('used_ideas', []))}\n")
+    print(f"\n📺 Series  : {series['emoji']} {series['name']}")
+    print(f"🔢 Video   : {history['current_series_count']}/{series['videos_per_cycle']}")
+    print(f"📦 Saved ideas: {len(history.get('used_ideas', []))}\n")
 
-    seed      = random.randint(1000, 99999)
+    seed      = random.randint(10000, 99999)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    print("🧠 توليد فكرة فريدة...")
+    print("🧠 Generating unique idea...")
     idea      = generate_idea(client, history, series)
-    idea_slug = hashlib.md5(idea.encode()).hexdigest()[:6]
-    out_name  = f"{series['id']}_{timestamp}_{idea_slug}.mp4"
+    slug      = hashlib.md5(idea.encode()).hexdigest()[:6]
+    out_name  = f"{series['id']}_{timestamp}_{slug}.mp4"
 
-    print(f"🎲 الفكرة  : {idea}")
-    print(f"🔑 Seed    : {seed}")
-    print(f"🎞️  المشاهد : {SCENES_COUNT}")
-    print(f"📁 الملف   : {out_name}\n")
+    print(f"\n💡 {idea}")
+    print(f"🔑 seed={seed} | 📁 {out_name}\n")
 
     raw    = generate_story(idea, client, series)
     scenes = parse_story(raw, idea, series)
-    print(f"📋 المشاهد: {len(scenes)}\n")
+    print(f"\n📋 {len(scenes)} scenes ready\n")
 
-    print("⚙️  معالجة المشاهد...")
-    for i, scene in enumerate(scenes, start=1):
-        img_path               = generate_image(scene["image_prompt"], i, seed, series)
-        scene["subtitle_path"] = add_subtitle(img_path, scene["text"], i, series)
-        scene["audio_path"]    = generate_audio(scene["text"], i)
-        print(f"   ✅ مشهد {i}/{len(scenes)} جاهز")
+    for i, scene in enumerate(scenes, 1):
+        print(f"⚙️  Scene {i}/{len(scenes)}")
+        try:
+            img_path               = generate_image(scene["image_prompt"], i, seed, series)
+            scene["subtitle_path"] = add_subtitle(img_path, scene["text"], i, series)
+            scene["audio_path"]    = generate_audio(scene["text"], i)
+            print(f"  ✅ Done")
+        except Exception as e:
+            print(f"  ❌ Scene {i} failed: {e}")
+            scene["subtitle_path"] = ""
+            scene["audio_path"]    = ""
 
     video_path = create_video(scenes, out_name)
     cleanup_temp()
@@ -597,8 +697,9 @@ def run():
     metadata = {
         "title"      : f"{series['emoji']} {idea}",
         "description": (
-            f"{series['name']} | {idea}\n\n"
-            f"اشترك في القناة للمزيد من المحتوى الرياضي الاحترافي 🔔\n\n"
+            f"{idea}\n\n"
+            f"{series['name']} — Deep dive into one of the most fascinating topics.\n\n"
+            f"Subscribe for more! 🔔\n\n"
             f"#{' #'.join(series['tags'])}"
         ),
         "tags"       : series["tags"],
@@ -606,31 +707,31 @@ def run():
     }
     youtube_id = upload_to_youtube(video_path, metadata)
 
-    history["series_tracker"][series["id"]] = history["series_tracker"].get(series["id"], 0) + 1
+    history["series_tracker"][series["id"]] = \
+        history["series_tracker"].get(series["id"], 0) + 1
     history["videos"].append({
         "file"      : out_name,
         "idea"      : idea,
         "series"    : series["id"],
         "created_at": timestamp,
         "seed"      : seed,
-        "published" : {"youtube": youtube_id},
-        "metadata"  : metadata,
+        "youtube"   : youtube_id,
     })
     save_history(history)
 
-    tracker = history["series_tracker"]
     print("\n" + "=" * 55)
-    print("🎉 اكتمل!")
-    print(f"📁 الفيديو  : {video_path}")
+    print("🎉 Complete!")
+    print(f"📁 {video_path}")
     if youtube_id:
-        print(f"📺 يوتيوب  : https://youtube.com/watch?v={youtube_id}")
-    print(f"\n📊 إحصاءات السلاسل:")
+        print(f"📺 https://youtube.com/watch?v={youtube_id}")
+    print(f"\n📊 Series stats:")
     for s in SERIES:
-        print(f"   {s['emoji']} {s['name']}: {tracker.get(s['id'], 0)} فيديو")
-    print(f"\n📦 الإجمالي     : {len(history['videos'])} فيديو")
-    print(f"🧠 أفكار محفوظة : {len(history['used_ideas'])}")
+        print(f"   {s['emoji']} {s['name']}: {history['series_tracker'].get(s['id'], 0)} videos")
+    print(f"\n📦 Total: {len(history['videos'])} videos")
+    print(f"🧠 Saved ideas: {len(history['used_ideas'])}")
     print("=" * 55)
     return video_path
+
 
 if __name__ == "__main__":
     run()
