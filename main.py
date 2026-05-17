@@ -28,10 +28,10 @@ import edge_tts
 GROQ_API_KEY      = os.environ.get("GROQ_API_KEY", "")
 OUTPUT_DIR        = "output_en_long"
 HISTORY_FILE      = "history_en_long.json"
-VIDEO_W           = 1920
-VIDEO_H           = 1080
+VIDEO_W           = 1280
+VIDEO_H           = 720
 FPS               = 24
-SCENES_COUNT      = 28        # 28 scenes × ~25s = ~11-12 minutes
+SCENES_COUNT      = 16        # 16 scenes × ~30s = ~8-9 minutes
 VOICE             = "en-US-GuyNeural"
 SIMILARITY_THRESH = 0.50
 MAX_IDEA_RETRIES  = 6
@@ -304,18 +304,18 @@ def generate_story(idea, client, series):
     # Part 1: scenes 1-14
     prompt_1 = (
         f"{series['story_prompt'].split('Return ONLY')[0]}"
-        f"Write scenes 1 to 14 ONLY.\n\n"
+        f"Write scenes 1 to 8 ONLY.\n\n"
         f"Return ONLY this exact format:\n\n"
-        f"{build_template(1, 14)}"
+        f"{build_template(1, 8)}"
     ).format(idea=idea, n=SCENES_COUNT, template="")
 
-    # Part 2: scenes 15-28
+    # Part 2: scenes 9-16
     prompt_2 = (
         f"Continue the video script about: {idea}\n"
-        f"Write scenes 15 to 28. Keep the same tone and style as part 1.\n"
+        f"Write scenes 9 to 16. Keep the same tone and style as part 1.\n"
         f"Each scene: a full paragraph of 4-6 sentences.\n\n"
         f"Return ONLY this exact format:\n\n"
-        f"{build_template(15, 28)}"
+        f"{build_template(9, 16)}"
     )
 
     for part_num, prompt in enumerate([prompt_1, prompt_2], 1):
